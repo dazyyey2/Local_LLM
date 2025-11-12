@@ -5,6 +5,9 @@ from datetime import datetime
 
 OLLAMA_URL = "http://localhost:11434/"
 
+def clear_terminal():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    
 def generate(model="gemma3:27b", prompt="Hello, world!", stream=False):
     payload = {"model": model, "prompt": prompt, "stream": stream}
     try:
@@ -12,7 +15,7 @@ def generate(model="gemma3:27b", prompt="Hello, world!", stream=False):
             OLLAMA_URL+'api/generate',
             data=json.dumps(payload),
             headers={"Content-Type": "application/json"},
-            timeout=120,
+            timeout=500,
         )
         resp.raise_for_status()
         return resp.json()  # dict with keys like: response, model, created_at, done
@@ -21,17 +24,32 @@ def generate(model="gemma3:27b", prompt="Hello, world!", stream=False):
         return None
 
 def get_current_models():
+    """Return a list of model names from Ollama or [] on error."""
     try:
-        resp = requests.post(
-            OLLAMA_URL+'api/tags',
+        resp = requests.get(
+            OLLAMA_URL + 'api/tags',
             headers={"Content-Type": "application/json"},
-            timeout=120,
+            timeout=30,
         )
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+        # Expected shape: {"models":[{"name":"llama3:8b", ...}, ...]}
+        models = [m.get("name") for m in data.get("models", []) if m.get("name")]
+        return models
     except requests.exceptions.RequestException as e:
-        print(f"Request error: {e}")
-        return None
+        print(f"[Error] Could not fetch models from {OLLAMA_URL}api/tags\n{e}")
+        return []
+
+def print_current_models():
+    running_models = get_current_models()
+    models = {}
+    counter = 0
+    for model in running_models:
+        counter += 1
+        print(f'{counter}: {model}')
+        models[str(counter)] = model
+    return models
+        
 def export_response(response_dict, file_name=None):
     # """
     # Save the entire JSON response to disk and return the model's text reply.
@@ -51,22 +69,17 @@ def export_response(response_dict, file_name=None):
     # # Return the model's actual text (if present)
     return response_dict.get("response", "")
 
-def handle_choices(user_input):
-    match user_input:
-        case '1':
-            return
-
 def print_menu(state):
     print("##############################")
     print("     Valters Local LLM")
     print("##############################")
-    print(get_current_models())
+    models = print_current_models()
     print("##############################")
     user_input = str(input('Please enter choice of model (default: gemma3:27b): '))
     if user_input == '':
         state['current_model'] = 'gemma3:27b'
     else:
-        state['current_model'] = user_input
+        state['current_model'] = models[user_input]
     return state
 
 def main():
@@ -74,23 +87,23 @@ def main():
     try:
         while True:
             if state.get('current_model'):
-                state = print_menu(state)
                 user_input = input("Please enter a prompt (or /quit): ").strip()
+                clear_terminal()
                 if user_input.lower() in {"/quit", "/exit"}:
                     print("Goodbye!")
                     break
-
-                result = generate(prompt=user_input)
-                reply_text = export_response(result)  # writes JSON; returns reply text
-
+                print('Waiting for reply...')
+                result = generate(model=state['current_model'], prompt=user_input)
+                reply_text = export_response(result)
+                clear_terminal()
                 if reply_text:
-                    print("\n########--- Model reply ---########")
                     print(reply_text)
-                    print("---------------------------\n")
                 else:
                     print("No reply text found in response.\n")
+            else:
+                state = print_menu(state)
     except KeyboardInterrupt:
-        print("\nExiting. Bye!")
+        print("\nExiting...")
 
 if __name__ == "__main__":
     main()
