@@ -13,11 +13,6 @@ def encode_image_to_base64(path):
         return base64.b64encode(f.read()).decode("utf-8")
 
 def vision_generate(model="gemma3:27b", prompt="Describe this image.", image_paths=None, stream=True, context=None):
-    """
-    Call an Ollama vision-capable model with one or more images + a text prompt.
-    Streams the response to stdout and returns the final context (if any).
-    """
-
     if isinstance(image_paths, str):
         image_paths = [image_paths]
 
