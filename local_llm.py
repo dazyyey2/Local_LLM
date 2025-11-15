@@ -141,14 +141,16 @@ def print_menu(state):
     user_input = str(input('Please enter choice of model (default: gemma3:27b): '))
     if user_input == '':
         state['current_model'] = 'gemma3:27b'
+        state['used_models'].add('gemma3:27b')
     elif models.get(user_input):
         state['current_model'] = models[user_input]
+        state['used_models'].add(state['current_model'])
     else:
         print('No model with that ID, please enter a valid ID')
     return state
 
 def main():
-    state = {'current_model': None, 'context': None, 'image_url': None}
+    state = {'current_model': None, 'context': None, 'image_url': None, 'used_models': set()}
     try:
         while True: #Main program loop
             if state.get('current_model'): #If a model is selected, proceed with using that model.
@@ -191,6 +193,10 @@ def main():
             else: #If no model is selected, print the menu.
                 state = print_menu(state)
     except KeyboardInterrupt: #If ctrl+c, exit gracefully.
+        print('\nStopping LLMs...')
+        for model in state['used_models']: #Stop all used models.
+            print(f'Stopping {model}')
+            os.system(f'ollama stop {model}')
         print('\nExiting...')
 
 if __name__ == '__main__':
